@@ -1,6 +1,7 @@
 from ScopeFoundry import HardwareComponent
 from .flircam_interface import FlirCamInterface
 import threading
+import time
 
 
 class FlirCamHW(HardwareComponent):
@@ -17,6 +18,7 @@ class FlirCamHW(HardwareComponent):
     def connect(self):
         S = self.settings
         self.cam = FlirCamInterface(debug=False)
+        S.debug_mode.add_listener(self.set_debug_mode)
         S.auto_exposure.connect_to_hardware(
             read_func = self.cam.get_auto_exposure,
             write_func = self.cam.set_auto_exposure
@@ -32,13 +34,18 @@ class FlirCamHW(HardwareComponent):
             write_func = self.cam.set_frame_rate
             )
         
+        S.acquiring.connect_to_hardware(
+            write_func = self.cam.set_acquisition
+            )
+        S.acquiring.update_value(True)
         self.update_thread_interrupted = False
         self.update_thread = threading.Thread(target=self.update_thread_run)
         self.update_thread.start()
         
     def disconnect(self):
+        self.settings.acquiring.update_value(False)
         self.settings.disconnect_all_from_hardware()
-        
+       
         if hasattr(self,'update_thread'):
             self.update_thread_interrupted = True
             self.update_thread.join(timeout=1.0)
@@ -52,5 +59,10 @@ class FlirCamHW(HardwareComponent):
     
     def update_thread_run(self):
         while not self.update_thread_interrupted:
-            self.img = self.cam.get_image()
+            if self.settings['acquiring']:
+                self.img = self.cam.get_image()
+                self.settings.frame_rate.read_from_hardware()
+            time.sleep(1/self.settings['frame_rate'])
         
+    def set_debug_mode(self):
+        self.cam.debug = self.settings['debug_mode']
