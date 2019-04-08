@@ -103,16 +103,25 @@ class FlirCamInterface(object):
         with self.lock:
             _err(self.lib.spinCameraGetNextImage(self.hCamera, byref(hResultImage)))
             _err(self.lib.spinImageIsIncomplete(hResultImage, byref(isIncomplete)))
-            _err(self.lib.spinImageGetStatus(hResultImage, byref(imageStatus)))
+            _err(self.lib.spinImageGetStatus(hResultImage, byref(imageStatus)))       
             
-            while isIncomplete and imageStatus != 0:
+            #print("isIncomplete", isIncomplete.value)
+            i = 0
+            while isIncomplete.value:
+                print("not ready", i)
+                i += 1
                 if self.debug: print('incomplete',imageStatus)
-                if imageStatus != 0:
-                    print(FlirCamImageStatus[imageStatus])
+
                 _err(self.lib.spinImageRelease(hResultImage))
                 _err(self.lib.spinCameraGetNextImage(self.hCamera, byref(hResultImage)))
                 _err(self.lib.spinImageIsIncomplete(hResultImage, byref(isIncomplete)))
                 _err(self.lib.spinImageGetStatus(hResultImage, byref(imageStatus)))       
+                if imageStatus.value != 0:
+                    print(FlirCamImageStatus[imageStatus.value])
+
+            if imageStatus.value != 0:
+                print("status after", FlirCamImageStatus[imageStatus.value])
+
             
             if self.debug: print("hResultImage " + str(hResultImage))
     
@@ -152,10 +161,10 @@ class FlirCamInterface(object):
             
             if pBitsPerPixel.value == 8:
                 #print('8bits')
-                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8)
+                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
             elif pBitsPerPixel.value == 16:
                 #print('16bits')
-                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint16)
+                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint16).copy()
             
             if self.debug:
                 print(img.shape)

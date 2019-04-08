@@ -4,6 +4,8 @@ import threading
 import time
 
 
+IMAGE_BUFFER_SIZE = 16
+
 class FlirCamHW(HardwareComponent):
     name = 'flircam'
     
@@ -16,6 +18,9 @@ class FlirCamHW(HardwareComponent):
         S.New('frame_rate', dtype=float, unit='Hz', spinbox_decimals=3)
         
     def connect(self):
+        
+        self.img_buffer = []
+        
         S = self.settings
         self.cam = FlirCamInterface(debug=False)
         S.debug_mode.add_listener(self.set_debug_mode)
@@ -61,8 +66,11 @@ class FlirCamHW(HardwareComponent):
         while not self.update_thread_interrupted:
             if self.settings['acquiring']:
                 self.img = self.cam.get_image()
+                self.img_buffer.append(self.img)
+                if len(self.img_buffer) > IMAGE_BUFFER_SIZE:
+                    self.img_buffer = self.img_buffer[-IMAGE_BUFFER_SIZE:]
                 self.settings.frame_rate.read_from_hardware()
-            time.sleep(1/self.settings['frame_rate'])
+            #time.sleep(1/self.settings['frame_rate'])
         
     def set_debug_mode(self):
         self.cam.debug = self.settings['debug_mode']

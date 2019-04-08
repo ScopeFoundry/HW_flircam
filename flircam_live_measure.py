@@ -51,7 +51,10 @@ class FlirCamLiveMeasure(Measurement):
         
         
     def update_display(self):
-        im = self.hw.img
+        self.display_update_period = 0.05
+        im = self.hw.img_buffer.pop(0).copy()
+        # print("buffer len:", len(self.hw.img_buffer))
+        # self.hw.img.copy()
         self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         
         if self.settings['crosshairs']:
