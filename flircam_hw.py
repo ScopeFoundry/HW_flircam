@@ -4,7 +4,7 @@ import threading
 import time
 
 
-IMAGE_BUFFER_SIZE = 16
+IMAGE_BUFFER_SIZE = 3
 
 class FlirCamHW(HardwareComponent):
     name = 'flircam'
