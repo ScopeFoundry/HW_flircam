@@ -1,6 +1,7 @@
 from ScopeFoundry import Measurement
 import pyqtgraph as pg
 import time
+import os
 from ScopeFoundry.helper_funcs import load_qt_ui_file, sibling_path
 
 class FlirCamLiveMeasure(Measurement):
@@ -36,7 +37,7 @@ class FlirCamLiveMeasure(Measurement):
         def apply_auto_exposure_index():
             self.hw.cam.set_auto_exposure(self.ui.auto_exposure_comboBox.currentIndex())
         self.ui.auto_exposure_comboBox.currentIndexChanged.connect(apply_auto_exposure_index)
-        
+        self.ui.save_pushButton.clicked.connect(self.save_image)
 
     def run(self):
         self.hw.settings['connected'] = True
@@ -68,3 +69,12 @@ class FlirCamLiveMeasure(Measurement):
             self.imview.getView().removeItem(self.crosshairs[0])
             self.imview.getView().removeItem(self.crosshairs[1])
             del self.crosshairs
+            
+    def save_image(self):
+        print('flircam_live_measure save_image')
+        t = time.localtime(time.time())
+        t_string = "{:02d}{:02d}{:02d}_{:02d}{:02d}{:02d}".format(int(str(t[0])[2:4]), t[1], t[2], t[3], t[4], t[5])
+        fname = os.path.join(self.app.settings['save_dir'], "%s_%s" % (t_string, self.name))
+        self.imview.export(fname + ".tif")
+        self.app.settings_save_ini(fname + ".ini")
+        
