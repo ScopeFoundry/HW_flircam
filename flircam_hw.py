@@ -14,15 +14,16 @@ class FlirCamHW(HardwareComponent):
         S.New('cam_index', dtype=int, initial=0)
         S.New('auto_exposure', dtype=int, initial=2)
         S.New('acquiring', dtype=bool, initial=False)
-        S.New('exposure', dtype=float, unit='s', spinbox_decimals=3)
+        S.New('exposure', dtype=float, unit='s', spinbox_decimals=6, si=True)
         S.New('frame_rate', dtype=float, unit='Hz', spinbox_decimals=3)
+        S.New('pixel_format', dtype=str, choices=['UNKNOWN',])
         
     def connect(self):
         
         self.img_buffer = []
         
         S = self.settings
-        self.cam = FlirCamInterface(debug=False)
+        self.cam = FlirCamInterface(debug=S['debug_mode'])
         S.debug_mode.add_listener(self.set_debug_mode)
         S.auto_exposure.connect_to_hardware(
             read_func = self.cam.get_auto_exposure,

@@ -7,6 +7,7 @@ import logging
 from threading import Lock
 import time
 import numpy as np
+import os
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ class FlirCamInterface(object):
         
         if platform.architecture()[0] == '64bit':
             libpath = r"C:\Program Files\Point Grey Research\Spinnaker\bin64\vs2015\SpinnakerC_v140.dll"
+            if not os.path.exists(libpath):
+                libpath = r"C:\Program Files\FLIR Systems\Spinnaker\bin64\vs2015\SpinnakerC_v140.dll"
         else:
             libpath = r"C:\Program Files\Point Grey Research\Spinnaker\bin\vs2015\SpinnakerC_v140.dll"
             
@@ -78,6 +81,10 @@ class FlirCamInterface(object):
         if self.debug: print("Setting acquisition mode to continuous.")
         _err(self.lib.spinEnumerationSetIntValue(hAcquisitionMode, self.get_enum_int_by_name(hAcquisitionMode, b'Continuous')))
         
+        if self.debug:
+            print("Pixel Format Options", self.get_pixel_format_options())
+
+        
     def set_acquisition(self, val):
         if self.debug: print('setting acquisition to %i' % val)
         if val:
@@ -95,7 +102,13 @@ class FlirCamInterface(object):
         if self.acquiring: 
             _err(self.lib.spinCameraEndAcquisition(self.hCamera))
         
-    def get_image(self, save_jpg=False):
+    def get_image(self, save_jpg=False, return_timestamp=False):
+        """
+        Returns numpy array of image
+        for RGB8 images: Ny x Nx x 3 dtype=uint8
+        
+        if return_timestamp: returns timestamp in nanoseconds and image: (ts, img)
+        """
         hResultImage = c_void_p()
         isIncomplete = ctypes.c_bool(True)
         imageStatus = c_uint(-1)
@@ -131,35 +144,44 @@ class FlirCamInterface(object):
             _err(self.lib.spinImageGetWidth(hResultImage,byref(width) ))
             _err(self.lib.spinImageGetHeight(hResultImage,byref(height) ))
             
-            if self.debug: print("w x h: %d %d" % (width.value,height.value))
+            ts = ctypes.c_uint64()
+            self.lib.spinImageGetTimeStamp(hResultImage, byref(ts))
+            #print("timestamp", ts.value, time.time())
+            #https://www.flir.com/support-center/iis/machine-vision/knowledge-base/imaging-products-timestamping-and-different-timestamp-mechanisms/
             
-            # hConvertedImage = c_void_p()
-            # _err(self.lib.spinImageCreateEmpty(byref(hConvertedImage)))
-            # _err(self.lib.spinImageConvert(hResultImage, 0, hConvertedImage))
+            if self.debug: 
+                print("w x h: %d %d" % (width.value,height.value))
             
-            # if self.debug: print("hConvertedImage " + str(hConvertedImage))
-            
-            #self.lib.spinImageGetData.argtypes = (c_void_p,POINTER(POINTER(c_uint16)))
-            #self.lib.spinImageGetData.restype = c_uint8
-            #ppData = POINTER(c_uint16)()
-            #_err(self.lib.spinImageGetData(hResultImage, ppData))
-            #img = np.array(np.ctypeslib.as_array(ppData,(1200,1920)))
-            #del ppData
-            #img = np.ones((1200,1920),dtype=np.uint16)
-#             _err(self.lib.spinImageGetData(hResultImage, byref(img.ctypes.data_as(POINTER(c_uint16)))))
+            width = width.value
+            height = height.value
+            #img_shape = (height.value, width.value)
 #             
             pBitsPerPixel=c_uint(0)
             _err(self.lib.spinImageGetBitsPerPixel(hResultImage, byref(pBitsPerPixel)))
-            #print(pBitsPerPixel.value)
+            #print("pBitsPerPixel", pBitsPerPixel.value)
+            
+            pPixelFormat =c_uint(0)
+            _err(self.lib.spinImageGetPixelFormat(hResultImage, byref(pPixelFormat)))
+            pixel_format = self.get_pixel_format()
+            if self.debug:
+                print(f'pixel format #{pPixelFormat.value}: {self.get_pixel_format()}' )
+            
             
             
             pSize = c_uint(0)
             _err(self.lib.spinImageGetBufferSize(hResultImage, byref(pSize)))
+            if self.debug:
+                print("Buffer Size", pSize.value)
             data = np.zeros(1, dtype=c_void_p)
             _err(self.lib.spinImageGetData(hResultImage, data.ctypes))
             if self.debug: print(data)
             
-            if pBitsPerPixel.value == 8:
+            if self.debug:
+                print("BitsPerPixel", pBitsPerPixel.value)
+            if pixel_format == 'RGB8':
+                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
+                img = img.reshape(height, width, 3)
+            elif pBitsPerPixel.value == 8:
                 #print('8bits')
                 img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
             elif pBitsPerPixel.value == 16:
@@ -168,27 +190,51 @@ class FlirCamInterface(object):
             
             if self.debug:
                 print(img.shape)
-                print(img.shape, img.reshape(1200,1920).shape)           
+                #print(img.shape, img.reshape(1200,1920).shape)           
                         
             if save_jpg:
                 t0 = time.time()
                 _err(self.lib.spinImageSave(hResultImage, b"flircam_test_%i.jpg" % t0, -1))
     
+            #self.convert_img(hResultImage)
             # _err(self.lib.spinImageDestroy(hConvertedImage))
             _err(self.lib.spinImageRelease(hResultImage))
-            return img.reshape((1200,1920))
+            
+            if return_timestamp:
+                return ts.value, img
+            
+            return img#.reshape(img_shape)
         
+        
+    def convert_img(self, spin_img):
+
+            hConvertedImage = c_void_p()
+            _err(self.lib.spinImageCreateEmpty(byref(hConvertedImage)))
+            _err(self.lib.spinImageConvert(spin_img, 0, hConvertedImage))
+              
+            if self.debug: print("hConvertedImage " + str(hConvertedImage))
+            
+            
+            #self.lib.spinImageGetData.argtypes = (c_void_p,POINTER(POINTER(c_uint16)))
+            #self.lib.spinImageGetData.restype = c_uint8
+            #ppData = POINTER(c_uint16)()
+            #_err(self.lib.spinImageGetData(hResultImage, ppData))
+            #img = np.array(np.ctypeslib.as_array(ppData,(1200,1920)))
+            #del ppData
+            #img = np.ones((1200,1920),dtype=np.uint16)
+            #_err(self.lib.spinImageGetData(hResultImage, byref(img.ctypes.data_as(POINTER(c_uint16)))))
+            _err(self.lib.spinImageDestroy(hConvertedImage))
 #
-# // Assuming image is 640 x 480 resolution. The current pixel format as well as PixelColorFilter indicate the Bayer Tile Mapping for the camera. For example, BayerRG8 is RGGB. 
-# 
-# err = spinCameraGetNextImage(hCam, &hResultImage);
-# size_t imageSize;
-# spinImageGetBufferSize(hResultImage, &imageSize);
-# 
-# void **data;
-# data = (void**)malloc(imageSize * sizeof(void*));
-# 
-# spinImageGetData(hResultImage, data);
+        # // Assuming image is 640 x 480 resolution. The current pixel format as well as PixelColorFilter indicate the Bayer Tile Mapping for the camera. For example, BayerRG8 is RGGB. 
+        # 
+        # err = spinCameraGetNextImage(hCam, &hResultImage);
+        # size_t imageSize;
+        # spinImageGetBufferSize(hResultImage, &imageSize);
+        # 
+        # void **data;
+        # data = (void**)malloc(imageSize * sizeof(void*));
+        # 
+        # spinImageGetData(hResultImage, data);
 
 
 
@@ -269,8 +315,8 @@ class FlirCamInterface(object):
     def set_exposure_time(self,t):
         hExposureTime = self.get_node("ExposureTime")
         (minval, maxval) = self.get_exposure_lims()
-        exp_time = c_double(max(min(t,maxval),minval))
-        _err(self.lib.spinFloatSetValue(hExposureTime,exp_time*1e6))
+        exp_time = c_double(max(min(t,maxval),minval)*1e6)
+        _err(self.lib.spinFloatSetValue(hExposureTime,exp_time))
     
     def get_node(self,nodeName):
         nodeHandle = c_void_p()
@@ -298,7 +344,7 @@ class FlirCamInterface(object):
     def set_auto_exposure(self,ind):
         hExposureAuto = self.get_node("ExposureAuto")
         setIndex = self.get_auto_exposure()
-        numVals = int(np.size(self.get_auto_exposure_vals()))
+        numVals = int(np.size(self.get_auto_exposure_options()))
         if ind == setIndex:
             return
         elif ind < numVals:
@@ -307,6 +353,7 @@ class FlirCamInterface(object):
             print("Error! Cannot set that auto exposure value")
     
     def get_node_enum_values(self,nodeName):
+        "Returns a list of names of allowed Enums for the given node"
         nodeHandle = self.get_node(nodeName)
         numVals = c_uint()
         _err(self.lib.spinEnumerationGetNumEntries(nodeHandle,byref(numVals)))
@@ -318,13 +365,9 @@ class FlirCamInterface(object):
             if self.debug: print("%d %s" % (i, this_val))
         return enumList
         
-    def get_auto_exposure_vals(self):
-        return self.get_node_enum_values(b"ExposureAuto")
-    
-    def get_pixel_format_vals(self):
-        return self.get_node_enum_values(b"PixelFormat")
     
     def get_node_enum_index(self, nodeName):
+        "Returns the integer index of the value of nodeName"
         hEnum = self.get_node(nodeName)
         pEnum = c_void_p()
         enumSymbolic = ctypes.create_string_buffer(MAX_BUFF_LEN)
@@ -339,28 +382,43 @@ class FlirCamInterface(object):
         if self.debug: print("indVal%s %d" % (nodeName, enumIndex.value))
         return enumIndex.value
     
-    def get_pixel_format(self):
-#         hPixelFormat = self.get_node(b"PixelFormat")
-#         
-#         phPixelFormat = c_void_p()
-#         PixelFormat = ctypes.create_string_buffer(MAX_BUFF_LEN)
-#         lenPixelFormat = c_size_t(MAX_BUFF_LEN)
-#         indValPixelFormat = c_uint()
-#         _err(self.lib.spinEnumerationGetCurrentEntry(hPixelFormat,byref(phPixelFormat)))
-#         if self.debug: print("phPixelFormat " + str(phPixelFormat))
-#         _err(self.lib.spinEnumerationEntryGetSymbolic(phPixelFormat,byref(PixelFormat),byref(lenPixelFormat)))
-#         if self.debug: print("PixelFormat " + str(PixelFormat.value,'utf8'))
-#         _err(self.lib.spinEnumerationEntryGetIntValue(phPixelFormat,byref(indValPixelFormat)))
-#         if self.debug: print("indValPixelFormat %s" % str(indValPixelFormat.value))
-        return self.get_node_enum_index('PixelFormat')
+    def get_node_enum_by_name(self, nodeName):
+        hEnum = self.get_node(nodeName)
+        pEnum = c_void_p()
+        enumSymbolic = ctypes.create_string_buffer(MAX_BUFF_LEN)
+        lenSymbolic = c_size_t(MAX_BUFF_LEN)
+        enumIndex = c_uint()
         
-    def get_frame_rate(self):
-        hAcquisitionFrameRate = self.get_node(b"AcquisitionFrameRate")
-        frameRate = c_double()
-        _err(self.lib.spinFloatGetValue(hAcquisitionFrameRate,byref(frameRate)))
-        return frameRate.value
+        _err(self.lib.spinEnumerationGetCurrentEntry(hEnum,byref(pEnum)))
+        if self.debug: print("ph%s %s" % (nodeName, str(pEnum)))
+        _err(self.lib.spinEnumerationEntryGetSymbolic(pEnum,byref(enumSymbolic),byref(lenSymbolic)))
+        if self.debug: print("%s %s" % (nodeName, str(enumSymbolic.value,'utf8')))
+        _err(self.lib.spinEnumerationEntryGetIntValue(pEnum,byref(enumIndex)))
+        if self.debug: print("indVal%s %d" % (nodeName, enumIndex.value))
+        return enumSymbolic.value
     
+    def get_auto_exposure_options(self):
+        return self.get_node_enum_values("ExposureAuto")
+    
+    def get_pixel_format_options(self):
+        return self.get_node_enum_values("PixelFormat")
+
+    def get_pixel_format(self):
+        return self.get_node_enum_by_name('PixelFormat').decode()
+    
+
+    def get_frame_rate(self):
+        return self.get_float_value("AcquisitionFrameRate")
+    
+    def get_float_value(self, nodeName):
+        hNode = self.get_node(nodeName)
+        val = c_double()
+        _err(self.lib.spinFloatGetValue(hNode,byref(val)))
+        return val.value
+
+
     def set_frame_rate(self,val):
+        #TODO
         pass
         
     def get_exposure_lims(self):

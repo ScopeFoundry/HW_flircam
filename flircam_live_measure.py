@@ -1,8 +1,11 @@
 from ScopeFoundry import Measurement
 import pyqtgraph as pg
+from qtpy import QtWidgets
+from qtpy import QtGui
 import time
 import os
 from ScopeFoundry.helper_funcs import load_qt_ui_file, sibling_path
+from pyqtgraph.functions import makeQImage
 
 class FlirCamLiveMeasure(Measurement):
     
@@ -11,6 +14,8 @@ class FlirCamLiveMeasure(Measurement):
     def setup(self):
         self.settings.New('auto_level', dtype=bool, initial=False)
         self.settings.New('crosshairs', dtype=bool, initial=False)
+        self.settings.New('flip_x', dtype=bool, initial=False)
+        self.settings.New('flip_y', dtype=bool, initial=False)
     
     def setup_figure(self):
         self.ui = load_qt_ui_file(sibling_path(__file__,'flircam_live_measure.ui'))
@@ -25,12 +30,24 @@ class FlirCamLiveMeasure(Measurement):
         self.hw.settings.exposure.connect_to_widget(self.ui.exp_doubleSpinBox)
         
         
-        self.imview = pg.ImageView()
+        #self.imview = pg.ImageView()
+        self.img_label = QtWidgets.QLabel()
+        
+        self.graph_layout = pg.GraphicsLayoutWidget()
+        self.plot = self.graph_layout.addPlot()
+        self.img_item = pg.ImageItem()
+        self.plot.addItem(self.img_item)
+        self.plot.setAspectLocked(lock=True, ratio=1)
+        
+        self.ui.plot_groupBox.layout().addWidget(self.img_label)
+        
         def switch_camera_view():
-            self.ui.plot_groupBox.layout().addWidget(self.imview)
-            self.imview.showMaximized() 
+            self.ui.plot_groupBox.layout().addWidget(self.graph_layout)
+            self.graph_layout.showMaximized() 
         self.ui.show_pushButton.clicked.connect(switch_camera_view)
-        self.ui.plot_groupBox.layout().addWidget(self.imview)
+        #self.ui.plot_groupBox.layout().addWidget(self.imview)
+        self.ui.plot_groupBox.layout().addWidget(self.graph_layout)
+        
         
         self.ui.auto_exposure_comboBox.addItem("placeholder")
         self.ui.auto_exposure_comboBox.setCurrentIndex(0)
@@ -42,7 +59,7 @@ class FlirCamLiveMeasure(Measurement):
     def run(self):
         self.hw.settings['connected'] = True
         if self.ui.auto_exposure_comboBox.count() == 1:
-            self.ui.auto_exposure_comboBox.addItems(self.hw.cam.get_auto_exposure_vals())
+            self.ui.auto_exposure_comboBox.addItems(self.hw.cam.get_auto_exposure_options())
             self.ui.auto_exposure_comboBox.removeItem(0)
             self.ui.auto_exposure_comboBox.setCurrentIndex(2)
 
@@ -52,29 +69,39 @@ class FlirCamLiveMeasure(Measurement):
         
         
     def update_display(self):
-        self.display_update_period = 0.05
+        self.display_update_period = 0.01
+        if not self.hw.img_buffer:
+            #print("no new frame")
+            return
         im = self.hw.img_buffer.pop(0).copy()
+        print('imshape', im.shape)
         # print("buffer len:", len(self.hw.img_buffer))
         # self.hw.img.copy()
-        self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
+        #self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
+        self.img_item.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         
-        if self.settings['crosshairs']:
-            im_dims = im.shape
-            if not hasattr(self,'crosshairs'):
-                self.crosshairs = [pg.InfiniteLine(pos=im_dims[1]/2,angle=90, movable=False),
-                                   pg.InfiniteLine(pos=im_dims[0]/2,angle=0, movable=False)]
-                self.imview.getView().addItem(self.crosshairs[0])
-                self.imview.getView().addItem(self.crosshairs[1])
-        elif hasattr(self,'crosshairs'):
-            self.imview.getView().removeItem(self.crosshairs[0])
-            self.imview.getView().removeItem(self.crosshairs[1])
-            del self.crosshairs
+#         if self.settings['crosshairs']:
+#             im_dims = im.shape
+#             if not hasattr(self,'crosshairs'):
+#                 self.crosshairs = [pg.InfiniteLine(pos=im_dims[1]/2,angle=90, movable=False),
+#                                    pg.InfiniteLine(pos=im_dims[0]/2,angle=0, movable=False)]
+#                 self.imview.getView().addItem(self.crosshairs[0])
+#                 self.imview.getView().addItem(self.crosshairs[1])
+#         elif hasattr(self,'crosshairs'):
+#             self.imview.getView().removeItem(self.crosshairs[0])
+#             self.imview.getView().removeItem(self.crosshairs[1])
+#             del self.crosshairs
+            
+        #self.img_label.setPixmap(QtGui.QPixmap.fromImage(
+        #    makeQImage(imgData=im, alpha=False, copy=False, transpose=True)))
+            
             
     def save_image(self):
         print('flircam_live_measure save_image')
         t = time.localtime(time.time())
         t_string = "{:02d}{:02d}{:02d}_{:02d}{:02d}{:02d}".format(int(str(t[0])[2:4]), t[1], t[2], t[3], t[4], t[5])
         fname = os.path.join(self.app.settings['save_dir'], "%s_%s" % (t_string, self.name))
-        self.imview.export(fname + ".tif")
+        #self.imview.export(fname + ".tif")
+        self.img_item.save(fname + ".tif")
         self.app.settings_save_ini(fname + ".ini")
         
