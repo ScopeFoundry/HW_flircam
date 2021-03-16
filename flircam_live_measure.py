@@ -74,7 +74,7 @@ class FlirCamLiveMeasure(Measurement):
             #print("no new frame")
             return
         im = self.hw.img_buffer.pop(0).copy()
-        print('imshape', im.shape)
+        #print('imshape', im.shape)
         # print("buffer len:", len(self.hw.img_buffer))
         # self.hw.img.copy()
         #self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
