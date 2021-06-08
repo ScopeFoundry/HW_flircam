@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from enum import Enum
 
 FlirCamErrors = OrderedDict([
     ('SPINNAKER_ERR_SUCCESS', 0),
@@ -54,3 +55,32 @@ FlirCamImageStatus = ( 'IMAGE_NO_ERROR',           # /**< Image is returned from
                 'IMAGE_DATA_INCOMPLETE',    # /**< Image data is incomplete. */
                 'IMAGE_UNKNOWN_ERROR'       # /**< Image has an unknown error. */
                 )
+
+class SpinNodeTypeEnum(Enum):
+    ValueNode = 0
+    BaseNode = 1
+    IntegerNode = 2
+    BooleanNode = 3
+    FloatNode = 4
+    CommandNode = 5
+    StringNode = 6
+    RegisterNode = 7
+    EnumerationNode = 8
+    EnumEntryNode = 9
+    CategoryNode = 10
+    PortNode = 11
+    UnknownNode = -1
+
+
+class AccessModeEnum(Enum):
+    """
+    access mode of a node
+    """
+    NI              = 0     #: Not implemented
+    NA              = 1     #: Not available
+    WO              = 2     #: Write Only
+    RO              = 3     #: Read Only
+    RW                    = 4       #: Read and Write
+    _UndefinedAccesMode   = 5 #: Object is not yet initialized
+    _CycleDetectAccesMode = 6   #: used internally for AccessMode cycle detection
+

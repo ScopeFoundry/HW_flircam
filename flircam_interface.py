@@ -8,6 +8,7 @@ from threading import Lock
 import time
 import numpy as np
 import os
+from ScopeFoundryHW.flircam.flircam_consts import SpinNodeTypeEnum
 
 
 logger = logging.getLogger(__name__)
@@ -395,7 +396,7 @@ class FlirCamInterface(object):
         if self.debug: print("%s %s" % (nodeName, str(enumSymbolic.value,'utf8')))
         _err(self.lib.spinEnumerationEntryGetIntValue(pEnum,byref(enumIndex)))
         if self.debug: print("indVal%s %d" % (nodeName, enumIndex.value))
-        return enumSymbolic.value
+        return enumSymbolic.value.decode()
     
     def get_auto_exposure_options(self):
         return self.get_node_enum_values("ExposureAuto")
@@ -404,8 +405,7 @@ class FlirCamInterface(object):
         return self.get_node_enum_values("PixelFormat")
 
     def get_pixel_format(self):
-        return self.get_node_enum_by_name('PixelFormat').decode()
-    
+        return self.get_node_enum_by_name('PixelFormat')
 
     def get_frame_rate(self):
         return self.get_float_value("AcquisitionFrameRate")
@@ -433,7 +433,80 @@ class FlirCamInterface(object):
         if self.debug: print("exp_time lims %f %f" % retval)
 
         return retval
+    
+    
+    def get_node_value(self, nodeName):
+        hNode = self.get_node(nodeName)
+        node_type = self.get_node_type(nodeName)
+        if   node_type == SpinNodeTypeEnum.IntegerNode:
+            x = c_int()
+            _err(self.lib.spinIntegerGetValue(hNode,byref(x)))
+            return x.value
+        elif node_type == SpinNodeTypeEnum.FloatNode:
+            x = c_double()
+            _err(self.lib.spinFloatGetValue(hNode,byref(x)))
+            return x.value
+        elif node_type == SpinNodeTypeEnum.EnumerationNode:
+            return self.get_node_enum_by_name(nodeName)
+        else:
+            raise ValueError("get_node_value failed {} {}".format(nodeName, node_type))
+        
+        
+    def set_node_value(self, nodeName, val):
+        hNode = self.get_node(nodeName)
+        node_type = self.get_node_type(nodeName)
+        if   node_type == SpinNodeTypeEnum.IntegerNode:
+            _err(self.lib.spinIntegerSetValue(hNode,val))
+        elif node_type == SpinNodeTypeEnum.FloatNode:
+            _err(self.lib.spinFloatSetValue(hNode,val))
+        elif node_type == SpinNodeTypeEnum.EnumerationNode:
+            #sb = ctypes.create_string_buffer(val.encode())
+            #_err(self.lib.spinNodeFromString(hNode, byref(sb)))
+            _err(self.lib.spinNodeFromString(hNode, val.encode()))
+        else:
+            raise ValueError("set_node_value failed {} {}".format(nodeName, node_type))
+    
+    #def get_node_access_mode(self, nodeName):
+    #    hNode = self.get_node(nodeName)
+    
+    def get_node_is_readable(self, nodeName):
+        hNode = self.get_node(nodeName)
+        readable = c_int()
+        _err(self.lib.spinNodeIsReadable(hNode, byref(readable)))
+        return readable.value
+         
+    def get_node_is_writable(self, nodeName):
+        hNode = self.get_node(nodeName)
+        writable = c_int()
+        _err(self.lib.spinNodeIsWritable(hNode, byref(writable)))
+        return writable.value
 
+    def get_node_type(self, nodeName):
+        hNode = self.get_node(nodeName)
+        pType = c_uint()
+        _err(self.lib.spinNodeGetType(hNode, byref(pType)))
+        #print( nodeName, 'type', pType.value, SpinNodeTypeEnum(pType.value))
+        return SpinNodeTypeEnum(pType.value)
+    
+    def get_node_value_limits(self, nodeName):
+        hNode = self.get_node(nodeName)
+        node_type = self.get_node_type(nodeName)
+        if   node_type == SpinNodeTypeEnum.IntegerNode:
+            xmin = c_int()
+            xmax = c_int()
+            _err(self.lib.spinIntegerGetMin(hNode,byref(xmin)))
+            _err(self.lib.spinIntegerGetMax(hNode,byref(xmax)))
+            return xmin.value, xmax.value
+        elif node_type == SpinNodeTypeEnum.FloatNode:
+            xmin = c_double()
+            xmax = c_double()
+            _err(self.lib.spinFloatGetMin(hNode,byref(xmin)))
+            _err(self.lib.spinFloatGetMax(hNode,byref(xmax)))
+            return xmin.value, xmax.value
+        else:
+            raise ValueError("get_node_value_limits failed {} {}".format(nodeName, node_type))
+
+        
 if __name__ == '__main__':
     #print(sys.path)
     try: 
@@ -447,6 +520,7 @@ if __name__ == '__main__':
     print(cam.get_pixel_format())
     print(len(cam.get_auto_exposure_vals()))
     print(cam.get_auto_exposure())
+    cam.get_node_type('PixelFormat')
             
     cam.get_node_enum_index('ExposureAuto')
     cam.get_node_enum_index('PixelFormat')
