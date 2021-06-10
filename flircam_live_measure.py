@@ -55,6 +55,14 @@ class FlirCamLiveMeasure(Measurement):
             self.hw.cam.set_auto_exposure(self.ui.auto_exposure_comboBox.currentIndex())
         self.ui.auto_exposure_comboBox.currentIndexChanged.connect(apply_auto_exposure_index)
         self.ui.save_pushButton.clicked.connect(self.save_image)
+        
+        self.crosshairs = [pg.InfiniteLine(movable=False, angle=90, pen=(255,0,0,200)),
+                           pg.InfiniteLine(movable=False, angle=0, pen=(255,0,0,200))]
+        for ch in self.crosshairs:
+            self.plot.addItem(ch)
+            ch.setZValue(100)
+
+        
 
     def run(self):
         self.hw.settings['connected'] = True
@@ -73,24 +81,19 @@ class FlirCamLiveMeasure(Measurement):
         if not self.hw.img_buffer:
             #print("no new frame")
             return
-        im = self.hw.img_buffer.pop(0).copy()
+        self.im = im = self.hw.img_buffer.pop(0).copy()
         #print('imshape', im.shape)
         # print("buffer len:", len(self.hw.img_buffer))
         # self.hw.img.copy()
         #self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         self.img_item.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         
-#         if self.settings['crosshairs']:
-#             im_dims = im.shape
-#             if not hasattr(self,'crosshairs'):
-#                 self.crosshairs = [pg.InfiniteLine(pos=im_dims[1]/2,angle=90, movable=False),
-#                                    pg.InfiniteLine(pos=im_dims[0]/2,angle=0, movable=False)]
-#                 self.imview.getView().addItem(self.crosshairs[0])
-#                 self.imview.getView().addItem(self.crosshairs[1])
-#         elif hasattr(self,'crosshairs'):
-#             self.imview.getView().removeItem(self.crosshairs[0])
-#             self.imview.getView().removeItem(self.crosshairs[1])
-#             del self.crosshairs
+        
+        
+        for ch,(x,y) in zip(self.crosshairs, [(im.shape[1]/2,0), (0,im.shape[0]/2)]):
+            ch.setPos((x,y))
+            #ch.setVisible(self.settings['crosshairs'])
+            ch.setZValue({True:1, False:-1}[self.settings['crosshairs']])
             
         #self.img_label.setPixmap(QtGui.QPixmap.fromImage(
         #    makeQImage(imgData=im, alpha=False, copy=False, transpose=True)))
