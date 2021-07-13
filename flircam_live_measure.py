@@ -74,14 +74,21 @@ class FlirCamLiveMeasure(Measurement):
         while not self.interrupt_measurement_called:
             time.sleep(0.5)
             self.hw.settings.exposure.read_from_hardware()
+            
+            
+    def get_rgb_image(self):
+        if not self.hw.img_buffer:
+            return False
+        else:
+            return self.hw.img_buffer.pop(0).copy()
         
-        
+                    
     def update_display(self):
         self.display_update_period = 0.01
-        if not self.hw.img_buffer:
-            #print("no new frame")
+        self.im = im = self.get_rgb_image()
+        if type(im)==bool:
             return
-        self.im = im = self.hw.img_buffer.pop(0).copy()
+        
         #print('imshape', im.shape)
         # print("buffer len:", len(self.hw.img_buffer))
         # self.hw.img.copy()
