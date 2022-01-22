@@ -182,6 +182,9 @@ class FlirCamInterface(object):
             if pixel_format == 'RGB8':
                 img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
                 img = img.reshape(height, width, 3)
+            elif pixel_format == 'Mono8':
+                img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
+                img = img.reshape(height, width)
             elif pBitsPerPixel.value == 8:
                 #print('8bits')
                 img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
@@ -384,6 +387,7 @@ class FlirCamInterface(object):
         return enumIndex.value
     
     def get_node_enum_by_name(self, nodeName):
+
         hEnum = self.get_node(nodeName)
         pEnum = c_void_p()
         enumSymbolic = ctypes.create_string_buffer(MAX_BUFF_LEN)
@@ -396,7 +400,10 @@ class FlirCamInterface(object):
         if self.debug: print("%s %s" % (nodeName, str(enumSymbolic.value,'utf8')))
         _err(self.lib.spinEnumerationEntryGetIntValue(pEnum,byref(enumIndex)))
         if self.debug: print("indVal%s %d" % (nodeName, enumIndex.value))
-        return enumSymbolic.value.decode()
+        
+        val = enumSymbolic.value.decode()
+        if self.debug: print("get_node_enum_by_name", nodeName, val)
+        return val
     
     def get_auto_exposure_options(self):
         return self.get_node_enum_values("ExposureAuto")
@@ -438,6 +445,7 @@ class FlirCamInterface(object):
     def get_node_value(self, nodeName):
         hNode = self.get_node(nodeName)
         node_type = self.get_node_type(nodeName)
+        if self.debug: print("get_node_value", nodeName, hNode, node_type)
         if   node_type == SpinNodeTypeEnum.IntegerNode:
             x = c_int()
             _err(self.lib.spinIntegerGetValue(hNode,byref(x)))
@@ -455,10 +463,11 @@ class FlirCamInterface(object):
     def set_node_value(self, nodeName, val):
         hNode = self.get_node(nodeName)
         node_type = self.get_node_type(nodeName)
+        if self.debug: print('set_node_value', nodeName, val, type(val), node_type)
         if   node_type == SpinNodeTypeEnum.IntegerNode:
             _err(self.lib.spinIntegerSetValue(hNode,val))
         elif node_type == SpinNodeTypeEnum.FloatNode:
-            _err(self.lib.spinFloatSetValue(hNode,val))
+            _err(self.lib.spinFloatSetValue(hNode,c_double(val)))
         elif node_type == SpinNodeTypeEnum.EnumerationNode:
             #sb = ctypes.create_string_buffer(val.encode())
             #_err(self.lib.spinNodeFromString(hNode, byref(sb)))
@@ -496,12 +505,15 @@ class FlirCamInterface(object):
             xmax = c_int()
             _err(self.lib.spinIntegerGetMin(hNode,byref(xmin)))
             _err(self.lib.spinIntegerGetMax(hNode,byref(xmax)))
+            if self.debug:
+                print('get_node_value_limits', nodeName, xmin.value, xmax.value)
             return xmin.value, xmax.value
         elif node_type == SpinNodeTypeEnum.FloatNode:
             xmin = c_double()
             xmax = c_double()
             _err(self.lib.spinFloatGetMin(hNode,byref(xmin)))
             _err(self.lib.spinFloatGetMax(hNode,byref(xmax)))
+            print('get_node_value_limits', nodeName, xmin.value, xmax.value)
             return xmin.value, xmax.value
         else:
             raise ValueError("get_node_value_limits failed {} {}".format(nodeName, node_type))
