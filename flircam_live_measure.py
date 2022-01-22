@@ -56,11 +56,11 @@ class FlirCamLiveMeasure(Measurement):
         self.ui.auto_exposure_comboBox.currentIndexChanged.connect(apply_auto_exposure_index)
         self.ui.save_pushButton.clicked.connect(self.save_image)
         
-        self.crosshairs = [pg.InfiniteLine(movable=False, angle=90, pen=(255,0,0,200)),
+        '''self.crosshairs = [pg.InfiniteLine(movable=False, angle=90, pen=(255,0,0,200)),
                            pg.InfiniteLine(movable=False, angle=0, pen=(255,0,0,200))]
         for ch in self.crosshairs:
             self.plot.addItem(ch)
-            ch.setZValue(100)
+            ch.setZValue(100)'''
 
         
 
