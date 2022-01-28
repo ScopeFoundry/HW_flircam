@@ -9,8 +9,8 @@ IMAGE_BUFFER_SIZE = 3
 default_features = {
     # lq_name: ('category', 'feature_name', dtype)
     #'exp_mode': ('AcquisitionControl', 'ExposureMode', 'enum'),
-    #'exp_auto': ('AcquisitionControl', 'ExposureAuto', 'enum'),
-    #'exp_time': ('AcquisitionControl', 'ExposureTime', 'float'),
+    'exp_auto': ('AcquisitionControl', 'ExposureAuto', 'enum'),
+    'exp_time': ('AcquisitionControl', 'ExposureTime', 'float'),
     #'exp_time_abs': ('AcquisitionControl', 'ExposureTimeAbs', 'float'),
     #'frame_rate': ('AcquisitionControl', 'AcquisitionFrameRate', 'float'),
     #'AutoExposureTimeLowerLimit': ('AcquisitionControl', 'AutoExposureTimeLowerLimit', 'float'),
@@ -49,7 +49,7 @@ class FlirCamHW(HardwareComponent):
                 choices = ['?','?']
             else:
                 choices = None
-            self.settings.New(lq_name, dtype=lq_dtype, choices=choices)
+            self.settings.New(lq_name, dtype=lq_dtype, choices=choices, reread_from_hardware_after_write=True)
         
         
     def connect(self):
@@ -99,7 +99,9 @@ class FlirCamHW(HardwareComponent):
                 lq.change_min_max(*self.cam.get_node_value_limits(node_name))
             
             def read_func(nodeName=node_name):
-                self.cam.get_node_value(nodeName)
+                if self.settings['debug_mode']:
+                    print(self.name, 'read_func')
+                return self.cam.get_node_value(nodeName)
             def write_func(val, nodeName=node_name):
                 self.cam.set_node_value(nodeName, val)
             if not self.cam.get_node_is_writable(node_name):
@@ -165,6 +167,7 @@ class FlirCamHW(HardwareComponent):
                     self.img_buffer = self.img_buffer[-IMAGE_BUFFER_SIZE:]
                 self.settings.frame_rate.read_from_hardware()
             #time.sleep(1/self.settings['frame_rate'])
+            #time.sleep(1.0)
         
     def set_debug_mode(self):
         self.cam.debug = self.settings['debug_mode']

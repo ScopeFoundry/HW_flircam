@@ -96,11 +96,11 @@ class FlirCamLiveMeasure(Measurement):
         self.img_item.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         
         
-        
-        for ch,(x,y) in zip(self.crosshairs, [(im.shape[1]/2,0), (0,im.shape[0]/2)]):
-            ch.setPos((x,y))
-            #ch.setVisible(self.settings['crosshairs'])
-            ch.setZValue({True:1, False:-1}[self.settings['crosshairs']])
+        if hasattr(self, 'crosshairs'):
+            for ch,(x,y) in zip(self.crosshairs, [(im.shape[1]/2,0), (0,im.shape[0]/2)]):
+                ch.setPos((x,y))
+                #ch.setVisible(self.settings['crosshairs'])
+                ch.setZValue({True:1, False:-1}[self.settings['crosshairs']])
             
         #self.img_label.setPixmap(QtGui.QPixmap.fromImage(
         #    makeQImage(imgData=im, alpha=False, copy=False, transpose=True)))
