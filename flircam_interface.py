@@ -179,9 +179,9 @@ class FlirCamInterface(object):
             
             if self.debug:
                 print("BitsPerPixel", pBitsPerPixel.value)
-            if pixel_format == 'RGB8':
+            if pixel_format in ('RGB8', 'RGB8Packed'):
                 img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
-                img = img.reshape(height, width, 3)
+                img = img[0:height*width*3].reshape(height, width, 3)
             elif pBitsPerPixel.value == 8:
                 #print('8bits')
                 img = np.frombuffer((c_uint8*pSize.value).from_address(int(data[0])), dtype=c_uint8).copy()
