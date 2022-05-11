@@ -16,6 +16,7 @@ class FlirCamLiveMeasure(Measurement):
         self.settings.New('crosshairs', dtype=bool, initial=False)
         self.settings.New('flip_x', dtype=bool, initial=False)
         self.settings.New('flip_y', dtype=bool, initial=False)
+        self.settings.New('downsample_view', dtype=int, initial=1)
     
     def setup_figure(self):
         self.ui = load_qt_ui_file(sibling_path(__file__,'flircam_live_measure.ui'))
@@ -28,6 +29,8 @@ class FlirCamLiveMeasure(Measurement):
         self.hw.settings.cam_index.connect_to_widget(self.ui.cam_index_doubleSpinBox)
         self.hw.settings.frame_rate.connect_to_widget(self.ui.framerate_doubleSpinBox)
         self.hw.settings.exposure.connect_to_widget(self.ui.exp_doubleSpinBox)
+        
+        self.settings.downsample_view.connect_to_widget(self.ui.downsample_view_doubleSpinBox)
         
         
         #self.imview = pg.ImageView()
@@ -93,6 +96,9 @@ class FlirCamLiveMeasure(Measurement):
         # print("buffer len:", len(self.hw.img_buffer))
         # self.hw.img.copy()
         #self.imview.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
+        ds = self.settings['downsample_view']
+        if ds > 1:
+            self.im = im = im[::ds,::ds]
         self.img_item.setImage(im.swapaxes(0,1),autoLevels=self.settings['auto_level'])
         
         
